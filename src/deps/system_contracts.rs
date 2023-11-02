@@ -15,6 +15,11 @@ pub const MODEXP_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x05,
 ]);
 
+pub const CHEAP_MODEXP_PRECOMPILE_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x25,
+]);
+
 pub const ECADD_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x06,
@@ -187,6 +192,11 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             "Playground",
             PLAYGROUND_PRECOMPILE_ADDRESS,
             include_bytes!("contracts/Playground.yul.zbin").to_vec(),
+        ),
+        (
+            "ModExpCheaper",
+            CHEAP_MODEXP_PRECOMPILE_ADDRESS,
+            include_bytes!("contracts/ModExpCheaper.yul.zbin").to_vec(),
         ),
     ]
     .map(|(_pname, address, contents)| DeployedContract {
