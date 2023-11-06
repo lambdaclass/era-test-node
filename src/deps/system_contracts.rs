@@ -192,12 +192,7 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             "Playground",
             PLAYGROUND_PRECOMPILE_ADDRESS,
             include_bytes!("contracts/Playground.yul.zbin").to_vec(),
-        ),
-        (
-            "ModExpCheaper",
-            CHEAP_MODEXP_PRECOMPILE_ADDRESS,
-            include_bytes!("contracts/ModExpCheaper.yul.zbin").to_vec(),
-        ),
+        )
     ]
     .map(|(_pname, address, contents)| DeployedContract {
         account_id: AccountTreeId::new(address),
