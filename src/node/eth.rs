@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use bigdecimal::num_traits::ToBytes;
 use colored::Colorize;
 use futures::FutureExt;
 use itertools::Itertools;
@@ -61,11 +62,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
             Ok(mut tx) => {
                 tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
                 let result = self.run_l2_call(tx);
+                let gas_used = result.clone().unwrap().statistics.gas_used;
 
                 match result {
-                    Ok(execution_result) => match execution_result {
+                    Ok(execution_result) => match execution_result.result {
                         ExecutionResult::Success { output } => {
-                            Ok(output.into()).into_boxed_future()
+                            let mut response_bytes = vec![];
+                            response_bytes.extend_from_slice(&gas_used.to_le_bytes());
+                            response_bytes.extend_from_slice(&output);
+                            Ok(response_bytes.into()).into_boxed_future()
                         }
                         ExecutionResult::Revert { output } => {
                             let message = output.to_user_friendly_string();
