@@ -4,7 +4,7 @@ import { exec as _exec, spawn as _spawn } from 'child_process';
 
 import { getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
 
-const COMPILER_VERSION = '1.3.14';
+const COMPILER_VERSION = '1.3.17';
 const IS_COMPILER_PRE_RELEASE = false;
 
 import path from "path";
