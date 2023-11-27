@@ -5,7 +5,9 @@ object "Console" {
             // CONSOLE.LOG Caller
             // It prints 'val' in the node console and it works using the 'mem'+0x40 memory sector
             function console_log(mem, val) -> {
-                let log_address := 0x000000000000000000636F6e736F6c652e6c6f67
+                // With zksolc 1.13.17 version, log_address must be 16 bit long
+                // let log_address := 0x000000000000000000636F6e736F6c652e6c6f67
+                let log_address := 0x000000000000000000000000000000000000f000
                 // load the free memory pointer
                 let freeMemPointer := mload(mem)
                 // store the function selector of log(uint256) in memory
