@@ -7,7 +7,7 @@ const systemConfig = require('./SystemConfig.json');
 
 export default {
     zksolc: {
-        version: '1.3.14',
+        version: '1.3.17',
         compilerSource: 'binary',
         settings: {
             isSystem: true
@@ -18,7 +18,7 @@ export default {
         ethNetwork: 'http://localhost:8545'
     },
     solidity: {
-        version: '0.8.17'
+        version: '0.8.20'
     },
     solpp: {
         defs: (() => {

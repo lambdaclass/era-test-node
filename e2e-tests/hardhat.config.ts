@@ -20,7 +20,7 @@ const config: HardhatUserConfig = {
     },
   },
   solidity: {
-    version: "0.8.17",
+    version: "0.8.20",
   },
   mocha: {
     // Multiple reports allow view of the ouput in the console and as a JSON for the test result exporter in CI
