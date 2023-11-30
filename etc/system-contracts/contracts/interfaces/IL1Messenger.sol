@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 interface IL1Messenger {
     // Possibly in the future we will be able to track the messages sent to L1 with

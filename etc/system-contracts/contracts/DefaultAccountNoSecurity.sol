@@ -3,7 +3,7 @@
 // TEST ONLY CODE
 // DO NOT USE IN PRODUCTION
 // ONLY FOR Hardhat / Forge testing.
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "./interfaces/IAccount.sol";
 import "./libraries/TransactionHelper.sol";
