@@ -1,7 +1,5 @@
 object "EcAdd" {
-    code {
-        return(0, 0)
-    }
+    code { }
     object "EcAdd_deployed" {
         code {
             ////////////////////////////////////////////////////////////////
@@ -247,7 +245,7 @@ object "EcAdd" {
             /// @dev See https://en.wikipedia.org/wiki/Montgomery_modular_multiplication#The_REDC_algorithm for further details on the Montgomery multiplication.
             /// @param minuend The minuend in Montgomery form.
             /// @param subtrahend The subtrahend in Montgomery form.
-            /// @return ret The result of the Montgomery subtraction.
+            /// @return ret The result of the Montgomery addition.
             function montgomerySub(minuend, subtrahend) -> ret {
                 ret := montgomeryAdd(minuend, sub(P(), subtrahend))
             }

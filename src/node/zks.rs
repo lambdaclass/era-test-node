@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use bigdecimal::BigDecimal;
 use colored::Colorize;
 use futures::FutureExt;
-use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, H256, U256};
+use zksync_basic_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, U256};
 use zksync_core::api_server::web3::backend_jsonrpc::error::{internal_error, into_jsrpc_error};
 use zksync_state::ReadStorage;
 use zksync_types::{
     api::{
-        BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, Proof, ProtocolVersion,
+        BlockDetails, BlockDetailsBase, BlockStatus, BridgeAddresses, ProtocolVersion,
         TransactionDetails, TransactionStatus, TransactionVariant,
     },
     fee::Fee,
@@ -119,15 +119,6 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> ZksNamespa
 
             Ok(transactions)
         })
-    }
-
-    fn get_proof(
-        &self,
-        _address: Address,
-        _keys: Vec<H256>,
-        _l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Proof> {
-        not_implemented("zks_getProof")
     }
 
     fn estimate_gas_l1_to_l2(
@@ -559,7 +550,7 @@ mod tests {
 
         let result = node.estimate_fee(mock_request).await.unwrap();
 
-        assert_eq!(result.gas_limit, U256::from(746532));
+        assert_eq!(result.gas_limit, U256::from(1086383));
         assert_eq!(result.max_fee_per_gas, U256::from(250000000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
         assert_eq!(result.gas_per_pubdata_limit, U256::from(4080));
@@ -823,8 +814,8 @@ mod tests {
                 "result": {
                     "l1Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l1_erc20_default_bridge),
                     "l2Erc20DefaultBridge": format!("{:#x}", input_bridge_addresses.l2_erc20_default_bridge),
-                    "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.unwrap()),
-                    "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.unwrap())
+                    "l1WethBridge": format!("{:#x}", input_bridge_addresses.l1_weth_bridge.clone().unwrap()),
+                    "l2WethBridge": format!("{:#x}", input_bridge_addresses.l2_weth_bridge.clone().unwrap())
                 },
                 "id": 0
             }),

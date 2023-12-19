@@ -1,12 +1,7 @@
 use itertools::Itertools;
+use multivm::vm_virtual_blocks::{constants::ETH_CALL_GAS_LIMIT, CallTracer, HistoryDisabled, Vm};
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
-
-use multivm::interface::VmInterface;
-use multivm::tracers::CallTracer;
-use multivm::vm_latest::HistoryDisabled;
-use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, ToTracerPointer, Vm};
-
 use zksync_basic_types::H256;
 use zksync_core::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use zksync_state::StorageView;
@@ -172,7 +167,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
             // update the enforced_base_fee within l1_batch_env to match the logic in zksync_core
             l1_batch_env.enforced_base_fee = Some(l2_tx.common_data.fee.max_fee_per_gas.as_u64());
             let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
-            let mut vm: Vm<_, HistoryDisabled> = Vm::new(l1_batch_env, system_env, storage);
+            let mut vm = Vm::new(l1_batch_env, system_env, storage, HistoryDisabled);
 
             // We must inject *some* signature (otherwise bootloader code fails to generate hash).
             if l2_tx.common_data.signature.is_empty() {
@@ -189,8 +184,11 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> DebugNames
             vm.push_transaction(tx);
 
             let call_tracer_result = Arc::new(OnceCell::default());
-            let tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
-            let tx_result = vm.inspect(tracer.into(), multivm::interface::VmExecutionMode::OneTx);
+            let tracer = CallTracer::new(call_tracer_result.clone(), HistoryDisabled);
+            let tx_result = vm.inspect(
+                vec![Box::new(tracer)],
+                multivm::interface::VmExecutionMode::OneTx,
+            );
 
             let call_traces = if only_top {
                 vec![]
@@ -258,7 +256,7 @@ mod tests {
         );
         let secondary_deployed_address = deployed_address_create(from_account, U256::zero());
         testing::deploy_contract(
-            node,
+            &node,
             H256::repeat_byte(0x1),
             private_key,
             secondary_bytecode,
@@ -273,7 +271,7 @@ mod tests {
         );
         let primary_deployed_address = deployed_address_create(from_account, U256::one());
         testing::deploy_contract(
-            node,
+            &node,
             H256::repeat_byte(0x1),
             private_key,
             primary_bytecode,
@@ -308,7 +306,7 @@ mod tests {
 
         // check that the call was successful
         let output =
-            ethers::abi::decode(&[ParamType::Uint(256)], trace.output.0.as_slice()).unwrap();
+            ethers::abi::decode(&[ParamType::Uint(256)], &trace.output.0.as_slice()).unwrap();
         assert_eq!(output[0], Token::Uint(U256::from(84)));
 
         // find the call to primary contract in the trace

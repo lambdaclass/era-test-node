@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.20;
+pragma solidity ^0.8.0;
 
 import "../libraries/TransactionHelper.sol";
 
@@ -23,17 +23,11 @@ interface IAccount {
         Transaction calldata _transaction
     ) external payable returns (bytes4 magic);
 
-    ///
-    /// FOUNDRY SUPPORT START
-    ///
     function executeTransaction(
         bytes32 _txHash,
         bytes32 _suggestedSignedHash,
         Transaction calldata _transaction
-    ) external payable returns ( bytes memory returnData );
-    ///
-    /// FOUNDRY SUPPORT END
-    ///
+    ) external payable;
 
     // There is no point in providing possible signed hash in the `executeTransactionFromOutside` method,
     // since it typically should not be trusted.

@@ -1,7 +1,5 @@
 object "EcMul" {
-    code {
-        return(0, 0)
-    }
+    code { }
     object "EcMul_deployed" {
         code {
             ////////////////////////////////////////////////////////////////

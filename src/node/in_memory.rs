@@ -7,7 +7,7 @@ use crate::{
     fork::{ForkDetails, ForkSource, ForkStorage},
     formatter,
     observability::Observability,
-    system_contracts::{self, SystemContracts},
+    system_contracts::{self, Options, SystemContracts},
     utils::{
         adjust_l1_gas_price_for_tx, bytecode_to_factory_dep, create_debug_output, to_human_size,
     },
@@ -26,20 +26,16 @@ use std::{
 
 use multivm::interface::{
     ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterface,
+    VmExecutionResultAndLogs,
 };
-use multivm::{
-    tracers::CallTracer,
-    vm_latest::HistoryDisabled,
-    vm_latest::{
-        constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
-        utils::{
-            fee::derive_base_fee_and_gas_per_pubdata,
-            l2_blocks::load_last_l2_block,
-            overhead::{derive_overhead, OverheadCoefficients},
-        },
-        ToTracerPointer, TracerPointer, Vm,
+use multivm::vm_virtual_blocks::{
+    constants::{BLOCK_GAS_LIMIT, BLOCK_OVERHEAD_PUBDATA, MAX_PUBDATA_PER_BLOCK},
+    utils::{
+        fee::derive_base_fee_and_gas_per_pubdata,
+        l2_blocks::load_last_l2_block,
+        overhead::{derive_overhead, OverheadCoeficients},
     },
+    CallTracer, HistoryDisabled, Vm, VmTracer,
 };
 use zksync_basic_types::{
     web3::signing::keccak256, Address, Bytes, L1BatchNumber, MiniblockNumber, H160, H256, U256, U64,
@@ -498,13 +494,8 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let execution_mode = TxExecutionMode::EstimateFee;
         let (mut batch_env, _) = self.create_l1_batch_env(storage.clone());
         batch_env.l1_gas_price = l1_gas_price;
-        let impersonating = self
-            .impersonated_accounts
-            .contains(&l2_tx.common_data.initiator_address);
         let system_env = self.create_system_env(
-            self.system_contracts
-                .contracts_for_fee_estimate(impersonating)
-                .clone(),
+            self.system_contracts.contracts_for_fee_estimate().clone(),
             execution_mode,
         );
 
@@ -565,7 +556,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
             &self.fork_storage,
         );
 
-        let coefficients = OverheadCoefficients::from_tx_type(EIP_712_TX_TYPE);
+        let coefficients = OverheadCoeficients::from_tx_type(EIP_712_TX_TYPE);
         let overhead: u32 = derive_overhead(
             suggested_gas_limit,
             gas_per_pubdata_byte as u32,
@@ -688,7 +679,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
         let l1_gas_price =
             adjust_l1_gas_price_for_tx(l1_gas_price, L2_GAS_PRICE, tx.gas_per_pubdata_byte_limit());
 
-        let coefficients = OverheadCoefficients::from_tx_type(EIP_712_TX_TYPE);
+        let coefficients = OverheadCoeficients::from_tx_type(EIP_712_TX_TYPE);
         // Set gas_limit for transaction
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
@@ -723,7 +714,7 @@ impl<S: std::fmt::Debug + ForkSource> InMemoryNodeInner<S> {
 
         batch_env.l1_gas_price = l1_gas_price;
 
-        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
 
         let tx: Transaction = l2_tx.into();
         vm.push_transaction(tx);
@@ -1016,7 +1007,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let (batch_env, _) = inner.create_l1_batch_env(storage.clone());
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
-        let mut vm: Vm<_, HistoryDisabled> = Vm::new(batch_env, system_env, storage.clone());
+        let mut vm = Vm::new(batch_env, system_env, storage, HistoryDisabled);
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
         if l2_tx.common_data.signature.is_empty() {
@@ -1028,9 +1019,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
 
         let call_tracer_result = Arc::new(OnceCell::default());
 
-        let custom_tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
+        let custom_tracers =
+            vec![
+                Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
+                    as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            ];
 
-        let tx_result = vm.inspect(custom_tracer.into(), VmExecutionMode::OneTx);
+        let tx_result = vm.inspect(custom_tracers, VmExecutionMode::OneTx);
 
         let call_traces = Arc::try_unwrap(call_tracer_result)
             .unwrap()
@@ -1281,19 +1276,18 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         &self,
         l2_tx: L2Tx,
         execution_mode: TxExecutionMode,
-        mut tracers: Vec<
-            TracerPointer<StorageView<ForkStorage<S>>, multivm::vm_latest::HistoryDisabled>,
-        >,
     ) -> Result<L2TxResult, String> {
         let inner = self
             .inner
             .write()
             .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-        let storage = StorageView::new(inner.fork_storage.clone()).to_rc_ptr();
+        let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
 
         let (batch_env, block_ctx) = inner.create_l1_batch_env(storage.clone());
 
+        // if we are impersonating an account, we need to use non-verifying system contracts
+        let nonverifying_contracts;
         let bootloader_code = {
             if inner
                 .impersonated_accounts
@@ -1303,15 +1297,21 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     "🕵️ Executing tx from impersonated account {:?}",
                     l2_tx.common_data.initiator_address
                 );
-                inner.system_contracts.contracts(execution_mode, true)
+                nonverifying_contracts =
+                    SystemContracts::from_options(&Options::BuiltInWithoutSecurity);
+                nonverifying_contracts.contracts(execution_mode)
             } else {
-                inner.system_contracts.contracts(execution_mode, false)
+                inner.system_contracts.contracts(execution_mode)
             }
         };
         let system_env = inner.create_system_env(bootloader_code.clone(), execution_mode);
 
-        let mut vm: Vm<_, HistoryDisabled> =
-            Vm::new(batch_env.clone(), system_env, storage.clone());
+        let mut vm = Vm::new(
+            batch_env.clone(),
+            system_env,
+            storage.clone(),
+            HistoryDisabled,
+        );
 
         let tx: Transaction = l2_tx.clone().into();
 
@@ -1320,15 +1320,15 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         let call_tracer_result = Arc::new(OnceCell::default());
         let bootloader_debug_result = Arc::new(OnceCell::default());
 
-        tracers.push(CallTracer::new(call_tracer_result.clone()).into_tracer_pointer());
-        tracers.push(
-            BootloaderDebugTracer {
+        let custom_tracers = vec![
+            Box::new(CallTracer::new(call_tracer_result.clone(), HistoryDisabled))
+                as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+            Box::new(BootloaderDebugTracer {
                 result: bootloader_debug_result.clone(),
-            }
-            .into_tracer_pointer(),
-        );
+            }) as Box<dyn VmTracer<StorageView<&ForkStorage<S>>, HistoryDisabled>>,
+        ];
 
-        let tx_result = vm.inspect(tracers.into(), VmExecutionMode::OneTx);
+        let tx_result = vm.inspect(custom_tracers, VmExecutionMode::OneTx);
 
         let call_traces = call_tracer_result.get().unwrap();
 
@@ -1461,6 +1461,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         };
 
         tracing::info!("");
+        tracing::info!("");
 
         let bytecodes = vm
             .get_last_tx_compressed_bytecodes()
@@ -1506,7 +1507,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
         }
 
         let (keys, result, call_traces, block, bytecodes, block_ctx) =
-            self.run_l2_tx_raw(l2_tx.clone(), execution_mode, vec![])?;
+            self.run_l2_tx_raw(l2_tx.clone(), execution_mode)?;
 
         if let ExecutionResult::Halt { reason } = result.result {
             // Halt means that something went really bad with the transaction execution (in most cases invalid signature,
@@ -1551,7 +1552,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     log_index: Some(U256::from(log_idx)),
                     transaction_log_index: Some(U256::from(log_idx)),
                     log_type: None,
-                    removed: Some(false),
+                    removed: None,
                 },
                 block.number,
             );
@@ -1586,7 +1587,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
                     log_index: Some(U256::from(log_idx)),
                     transaction_log_index: Some(U256::from(log_idx)),
                     log_type: None,
-                    removed: Some(false),
+                    removed: None,
                 })
                 .collect(),
             l2_to_l1_logs: vec![],
@@ -1717,14 +1718,8 @@ impl BlockContext {
 
 #[cfg(test)]
 mod tests {
-    use ethabi::{Token, Uint};
-    use zksync_basic_types::Nonce;
-    use zksync_types::utils::deployed_address_create;
-
     use super::*;
-    use crate::{
-        http_fork_source::HttpForkSource, node::InMemoryNode, system_contracts::Options, testing,
-    };
+    use crate::{http_fork_source::HttpForkSource, node::InMemoryNode, testing};
 
     #[tokio::test]
     async fn test_run_l2_tx_validates_tx_gas_limit_too_high() {
@@ -1833,67 +1828,7 @@ mod tests {
         node.run_l2_tx_raw(
             testing::TransactionBuilder::new().build(),
             TxExecutionMode::VerifyExecute,
-            vec![],
         )
         .expect("transaction must pass with external storage");
-    }
-
-    #[tokio::test]
-    async fn test_transact_returns_data_in_built_in_without_security_mode() {
-        let node = InMemoryNode::<HttpForkSource>::new(
-            None,
-            None,
-            InMemoryNodeConfig {
-                system_contracts_options: Options::BuiltInWithoutSecurity,
-                ..Default::default()
-            },
-        );
-
-        let private_key = H256::repeat_byte(0xef);
-        let from_account = zksync_types::PackedEthSignature::address_from_private_key(&private_key)
-            .expect("failed generating address");
-        node.set_rich_account(from_account);
-
-        let deployed_address = deployed_address_create(from_account, U256::zero());
-        testing::deploy_contract(
-            &node,
-            H256::repeat_byte(0x1),
-            private_key,
-            hex::decode(testing::STORAGE_CONTRACT_BYTECODE).unwrap(),
-            None,
-            Nonce(0),
-        );
-
-        let mut tx = L2Tx::new_signed(
-            deployed_address,
-            hex::decode("bbf55335").unwrap(), // keccak selector for "transact_retrieve1()"
-            Nonce(1),
-            Fee {
-                gas_limit: U256::from(815563),
-                max_fee_per_gas: U256::from(250_000_000),
-                max_priority_fee_per_gas: U256::from(250_000_000),
-                gas_per_pubdata_limit: U256::from(20000),
-            },
-            U256::from(0),
-            zksync_basic_types::L2ChainId::from(260),
-            &private_key,
-            None,
-            Default::default(),
-        )
-        .expect("failed signing tx");
-        tx.common_data.transaction_type = TransactionType::LegacyTransaction;
-        tx.set_input(vec![], H256::repeat_byte(0x2));
-        let (_, result, ..) = node
-            .run_l2_tx_raw(tx, TxExecutionMode::VerifyExecute, vec![])
-            .expect("failed tx");
-
-        match result.result {
-            ExecutionResult::Success { output } => {
-                let actual = testing::decode_tx_result(&output, ethabi::ParamType::Uint(256));
-                let expected = Token::Uint(Uint::from(1024u64));
-                assert_eq!(expected, actual, "invalid result");
-            }
-            _ => panic!("invalid result {:?}", result.result),
-        }
     }
 }

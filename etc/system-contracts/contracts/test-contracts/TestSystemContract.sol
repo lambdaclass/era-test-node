@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.20;
+pragma solidity ^0.8.0;
 
 import "../Constants.sol";
 
@@ -29,7 +29,7 @@ contract TestSystemContract is ISystemContract {
 
         {
             uint256 gasBefore = gasleft();
-            SystemContractHelper.unsafePrecompileCall(0, 10000);
+            SystemContractHelper.precompileCall(0, 10000);
             uint256 gasAfter = gasleft();
             require(gasBefore - gasAfter > 10000, "Did not spend enough gas");
             require(gasBefore - gasAfter < 10100, "Spent too much gas");
