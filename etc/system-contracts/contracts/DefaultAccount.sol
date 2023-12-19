@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.20;
 
 import "./interfaces/IAccount.sol";
 import "./libraries/TransactionHelper.sol";
@@ -10,6 +10,7 @@ import {BOOTLOADER_FORMAL_ADDRESS, NONCE_HOLDER_SYSTEM_CONTRACT, DEPLOYER_SYSTEM
 
 /**
  * @author Matter Labs
+ * @custom:security-contact security@matterlabs.dev
  * @notice The default implementation of account.
  * @dev The bytecode of the contract is set by default for all addresses for which no other bytecodes are deployed.
  * @notice If the caller is not a bootloader always returns empty data on call, just like EOA does.
@@ -100,11 +101,12 @@ contract DefaultAccount is IAccount {
 
         if (_isValidSignature(txHash, _transaction.signature)) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
-        } else {
-            magic = bytes4(0);
         }
     }
 
+    ///
+    /// FOUNDRY SUPPORT START
+    ///
     /// @notice Method called by the bootloader to execute the transaction.
     /// @param _transaction The transaction to execute.
     /// @dev It also accepts unused _txHash and _suggestedSignedHash parameters:
@@ -114,8 +116,12 @@ contract DefaultAccount is IAccount {
         bytes32, // _txHash
         bytes32, // _suggestedSignedHash
         Transaction calldata _transaction
-    ) external payable override ignoreNonBootloader ignoreInDelegateCall {
+    ) external payable override ignoreNonBootloader ignoreInDelegateCall returns (bytes memory returnData) {
         _execute(_transaction);
+        returnData = bytes("");
+        ///
+        /// FOUNDRY SUPPORT END
+        ///
     }
 
     /// @notice Method that should be used to initiate a transaction from this account by an external call.
@@ -218,7 +224,7 @@ contract DefaultAccount is IAccount {
         _transaction.processPaymasterInput();
     }
 
-    fallback() external payable {
+    fallback() external payable ignoreInDelegateCall {
         // fallback of default account shouldn't be called by bootloader under no circumstances
         assert(msg.sender != BOOTLOADER_FORMAL_ADDRESS);
 

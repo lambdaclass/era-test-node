@@ -3,7 +3,7 @@ use serde_json::Value;
 use zksync_basic_types::{AccountTreeId, Address, H160};
 use zksync_types::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
-    BOOTLOADER_UTILITIES_ADDRESS, BYTECODE_COMPRESSOR_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
+    BOOTLOADER_UTILITIES_ADDRESS, COMPRESSOR_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     ECRECOVER_PRECOMPILE_ADDRESS, EVENT_WRITER_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
@@ -25,11 +25,6 @@ pub const ECADD_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x06,
 ]);
 
-pub const ECMUL_PRECOMPILE_ADDRESS: Address = H160([
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x07,
-]);
-
 pub const ECPAIRING_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x08,
@@ -37,7 +32,6 @@ pub const ECPAIRING_PRECOMPILE_ADDRESS: Address = H160([
 
 pub const P256VERIFY_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x19,
 ]);
 
 pub const SECP256K1VERIFY_PRECOMPILE_ADDRESS: Address = H160([
@@ -61,8 +55,6 @@ pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
         .as_str()
         .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_name))
         .strip_prefix("0x")
-        .unwrap_or_else(|| panic!("Bytecode in {:?} is not hex", artifact_name));
-
     hex::decode(bytecode)
         .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_name, err))
 }
@@ -120,9 +112,9 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             include_bytes!("contracts/BootloaderUtilities.json").to_vec(),
         ),
         (
-            "BytecodeCompressor",
-            BYTECODE_COMPRESSOR_ADDRESS,
-            include_bytes!("contracts/BytecodeCompressor.json").to_vec(),
+            "Compressor",
+            COMPRESSOR_ADDRESS,
+            include_bytes!("contracts/Compressor.json").to_vec(),
         ),
     ]
     .map(|(pname, address, contents)| DeployedContract {
@@ -161,15 +153,11 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
         (
             "EcAdd",
             ECADD_PRECOMPILE_ADDRESS,
-            include_bytes!("contracts/EcAdd.yul.zbin").to_vec(),
         ),
         (
             "EcMul",
             ECMUL_PRECOMPILE_ADDRESS,
             include_bytes!("contracts/EcMul.yul.zbin").to_vec(),
-        ),
-        (
-            "EcPairing",
             ECPAIRING_PRECOMPILE_ADDRESS,
             include_bytes!("contracts/EcPairing.yul.zbin").to_vec(),
         ),
