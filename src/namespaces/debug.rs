@@ -1,18 +1,18 @@
 use crate::{
     fork::ForkSource,
     node::{InMemoryNodeInner, MAX_TX_SIZE},
-    utils::{create_debug_output, to_real_block_number},
+    utils::{create_debug_output, storage_view::StorageView, to_real_block_number},
 };
 use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Result};
-use multivm::vm_virtual_blocks::{constants::ETH_CALL_GAS_LIMIT, CallTracer, HistoryDisabled, Vm};
+use multivm::interface::VmInterface;
+use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, CallTracer, Vm};
 use once_cell::sync::OnceCell;
 use std::sync::{Arc, RwLock};
 use zksync_basic_types::H256;
 use zksync_core::api_server::web3::backend_jsonrpc::{
     error::into_jsrpc_error, namespaces::debug::DebugNamespaceT,
 };
-use zksync_state::StorageView;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, TransactionVariant},
     l2::L2Tx,
@@ -170,7 +170,7 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
             };
 
             let execution_mode = multivm::interface::TxExecutionMode::EthCall;
-            let storage = StorageView::new(&inner.fork_storage).to_rc_ptr();
+            let storage = StorageView::new(&inner.fork_storage).into_rc_ptr();
 
             let bootloader_code = inner.system_contracts.contracts_for_l2_call();
 
@@ -202,6 +202,8 @@ impl<S: Send + Sync + 'static + ForkSource + std::fmt::Debug> DebugNamespaceT
                 vec![Box::new(tracer)],
                 multivm::interface::VmExecutionMode::OneTx,
             );
+            let tracer = CallTracer::new(call_tracer_result.clone()).into_tracer_pointer();
+            let tx_result = vm.inspect(tracer.into(), multivm::interface::VmExecutionMode::OneTx);
 
             let call_traces = if only_top {
                 vec![]
