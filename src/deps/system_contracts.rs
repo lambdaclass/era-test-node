@@ -22,6 +22,31 @@ pub const ECMUL_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x07,
 ]);
 
+/// The `ecPairing` system contract address.
+pub const ECPAIRING_PRECOMPILE_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x08,
+]);
+
+/// The `p256Verify` system contract address.
+pub const P256VERIFY_PRECOMPILE_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x07,
+]);
+
+/// The `secp256k1VERIFY` system contract address.
+pub const secp256k1VERIFY_PRECOMPILE_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x07,
+]);
+
+/// The `modexp` system contract address.
+pub const MODEXP_PRECOMPILE_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x07,
+]);
+
+
 pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
     let artifact: Value = serde_json::from_slice(contents).expect(artifact_name);
     let bytecode = artifact["bytecode"]
@@ -129,6 +154,26 @@ pub static COMPILED_IN_SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new
             "ECMUL_PRECOMPILE_ADDRESS",
             ECMUL_PRECOMPILE_ADDRESS,
             include_bytes!("contracts/EcMul.yul.zbin").to_vec(),
+        ),
+        (
+            "ECPAIRING_PRECOMPILE_ADDRESS",
+            ECPAIRING_PRECOMPILE_ADDRESS,
+            include_bytes!("contracts/EcPairing.yul.zbin").to_vec(),
+        ),
+        (
+            "P256VERIFY_PRECOMPILE_ADDRESS",
+            P256VERIFY_PRECOMPILE_ADDRESS,
+            include_bytes!("contracts/P256VERIFY.yul.zbin").to_vec(),
+        ),
+        (
+            "secp256k1VERIFY_PRECOMPILE_ADDRESS",
+            secp256k1VERIFY_PRECOMPILE_ADDRESS,
+            include_bytes!("contracts/secp256k1VERIFY.yul.zbin").to_vec(),
+        ),
+        (
+            "MODEXP_PRECOMPILE_ADDRESS",
+            MODEXP_PRECOMPILE_ADDRESS,
+            include_bytes!("contracts/ModExp.yul.zbin").to_vec(),
         ),
     ]
     .map(|(_pname, address, contents)| DeployedContract {
