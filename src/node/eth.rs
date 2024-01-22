@@ -64,10 +64,13 @@ impl<S: ForkSource + std::fmt::Debug + Clone + Send + Sync + 'static> EthNamespa
 
                 match result {
                     Ok(execution_result) => match execution_result.result {
-                        ExecutionResult::Success { mut output } => {
+                        ExecutionResult::Success { output } => {
                             let gas_used = execution_result.statistics.gas_used;
-                            output.extend_from_slice(&gas_used.to_le_bytes());
-                            Ok(output.into()).into_boxed_future()
+                            tracing::debug!("GAS USED: {gas_used}");
+                            let mut result = vec![];
+                            result.extend_from_slice(&gas_used.to_le_bytes());
+                            result.extend_from_slice(&output);
+                            Ok(result.into()).into_boxed_future()
                         }
                         ExecutionResult::Revert { output } => {
                             let message = output.to_user_friendly_string();
