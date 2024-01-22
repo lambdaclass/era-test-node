@@ -1019,7 +1019,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
     }
 
     /// Runs L2 'eth call' method - that doesn't commit to a block.
-    pub fn run_l2_call(&self, mut l2_tx: L2Tx) -> Result<ExecutionResult, String> {
+    pub fn run_l2_call(&self, mut l2_tx: L2Tx) -> Result<VmExecutionResultAndLogs, String> {
         let execution_mode = TxExecutionMode::EthCall;
 
         let inner = self
@@ -1081,7 +1081,7 @@ impl<S: ForkSource + std::fmt::Debug + Clone> InMemoryNode<S> {
             formatter::print_call(call, 0, &inner.show_calls, inner.resolve_hashes);
         }
 
-        Ok(tx_result.result)
+        Ok(tx_result)
     }
 
     fn display_detailed_gas_info(
