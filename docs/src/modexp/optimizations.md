@@ -1,3 +1,0 @@
-# Optimizations
-
-TODO

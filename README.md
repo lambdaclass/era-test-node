@@ -1,95 +1,250 @@
-# zkSync Era Precompiles
+<div align="center">
+<a href="https://era.zksync.io/docs/tools/testing/era-test-node.html">
 
-DISCLAIMER: This implementation is still being developed and has not been reviewed or audited. Use at your own risk.
+![era-test-node](./.github/assets/era_test_node_banner_light.png#gh-light-mode-only)
+![era-test-node](./.github/assets/era_test_node_banner_dark.png#gh-dark-mode-only)
+</a>
 
-This is a precompile library implemented in Yul to speed up arithmetic operations of elliptic curves.
-In the next weeks, we will add more optimizations and benchmarks.
+  </div>
 
-# Current Status
+# 🚀 zkSync Era In-Memory Node 🚀
 
-| Precompile | MVP | Optimized | Optional Future Optimizations | Audited | Comments |
-| --- | --- | --- | --- | --- | --- |
-| ecAdd | ✅ | ✅ | Montgomery SOS Squaring | ✅ | - |
-| ecMul | ✅ | ✅ | Montgomery SOS Squaring + Mul GLV | ✅ | - |
-| ecPairing | ✅ | ✅ | - | 🏗️ | - |
-| modexp | ✅ | ✅ | - | 🏗️ | - |
-| P256VERIFY | ✅ | ✅ | Montgomery SOS Squaring | ✅ | - |
-| secp256k1VERIFY | ✅ | ✅ | Montgomery SOS Squaring | ✅ | - |
+This crate provides an in-memory node that supports forking the state from other networks.
 
-## Summary
+The goal of this crate is to offer a fast solution for integration testing, bootloader and system contract testing, and prototyping.
 
-- `ecAdd` is optimized with finite field arithmetic in Montgomery form and optimized modular inverse with a modification of the binary extended Euclidean algorithm that skips the Montgomery reduction step for inverting. There is not much more room for optimizations, maybe we could think of Montgomery squaring (SOS) to improve the finite field squaring. *This precompile has been audited a first time and it is currently being audited a second time (after the fixes).*
-- `ecMul` is optimized with finite field arithmetic in Montgomery form, optimized modular inverse with a modification of the binary extended Euclidean algorithm that skips the Montgomery reduction step for inverting, and the elliptic curve point arithmetic is being done in homogeneous projective coordinates. There are some other possible optimizations to implement, one is the one discussed in the Slack channel (endomorphism: GLV or wGLV), the [windowed method](https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication#Windowed_method), the [sliding-window method](https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication#Sliding-window_method), [wNAF (windowed non-adjacent form)](https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication#w-ary_non-adjacent_form_(wNAF)_method) to improve the elliptic curve point arithmetic, and Montgomery squaring (SOS) to improve the finite field squaring, Jacobian projective coordinates (this would have similar performance and gas costs as working with the homogeneous projective coordinates but it would be free to add it since we need this representation for `ecPairing`). *This precompile has been audited a first time and it is currently being audited a second time (after the fixes).*
-- `modexp` has been updated to support Big Int arithmetic. This means it is now fully compatible with [EIP-198](https://eips.ethereum.org/EIPS/eip-198)'s specification and all the tests are passing, however the gas costs are really high. As an example, passing a modulus with three limbs (three `uint256`s) will most certainly make it run out of gas. The big cost is in the finite field `div_rem` function, which we need to have a modulo operator on big ints, taking around 80/90% of all the gas cost when calling the precompile. The gas cost skyrockets pretty quickly the more limbs numbers have. We are looking into optimization opportunities but gas costs may still remain really high. *This precompile has not been audited yet.*
-- `ecPairing`:
-    We have based our algorithm implementation primarily on the guidelines presented in the paper ["High-Speed Software Implementation of the Optimal Ate Pairing over Barreto–Naehrig Curves"](https://eprint.iacr.org/2010/354.pdf) . This implementation includes the utilization of Tower Extension Field Arithmetic and the Frobenius Operator.
+🔗 For a detailed walkthrough, refer to the [official documentation](https://era.zksync.io/docs/tools/testing/era-test-node.html).
 
-    To enhance the performance of the Miller loop, we have incorporated specific optimizations, we have optimized line evaluation based on the techniques outlined in ["The Realm of the Pairings"](https://eprint.iacr.org/2013/722.pdf) . Also, instead of using Jacobian coordinates, we have adopted projective coordinates. This choice is particularly advantageous given the large inversion/multiplication ratio in this context.
+## 📌 Overview
 
-    In the final exponentiation phase, we have integrated the methods presented in ["Memory-saving computation of the pairing final exponentiation on BN curves"](https://eprint.iacr.org/2015/192.pdf). This includes the Fuentes et al. method and the addition chain. We have also applied Faster Squaring in the Cyclotomic Subgroup, as described in [”Faster Squaring in the Cyclotomic Subgroup of Sixth Degree Extensions”](https://eprint.iacr.org/2009/565.pdf).
+The In-Memory Node is designed for local testing and uses an in-memory database for storing state information. It also employs simplified hashmaps for tracking blocks and transactions. When in fork mode, it fetches missing storage data from a remote source if not available locally. Additionally, it uses the remote server (openchain) to resolve the ABI and topics to human-readable names.
 
-    **Remaining Optimizations:** While our implementation has achieved notable results, there are still some straightforward optimizations that can be implemented:
+## ⚠️ Caution
 
-    - **Optimizing Accumulated Value:** We are currently naively multiplying two fp12 elements, which contain many zeros. Modifying this calculation could enhance efficiency. *This is in WIP.*
+Please note that `era-test-node` is still in its **alpha** stage. Some features might not be fully supported yet and may not work as intended. However, it is open-sourced, and contributions are welcome!
 
-    **Future Investigations:**  We need to investigate the reliability of additional optimizations, such as the application of the GLV method for multiplication of rational points of elliptic curves.
-- `P256VERIFY` is already working and optimized with Shamir’s trick. *This precompile has been audited a first time and it is currently being audited a second time (after the fixes).*
-- `secp256k1VERIFY` is already working and optimized with Shamir’s trick. *This precompile has been audited a first time and it is currently being audited a second time (after the fixes).*
+## 📊 Limitations & Features
 
-## [Gas Consumption](./docs/src/gas_consumption.md)
+| 🚫 Limitations                                  | ✅ Features                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------- |
+| No communication between Layer 1 and Layer 2.   | Can fork the state of mainnet, testnet, or custom network.  |
+| Many APIs are not yet implemented.              | Can replay existing mainnet or testnet transactions.        |
+| No support for accessing historical data.       | Uses local bootloader and system contracts.                 |
+| Only one transaction allowed per Layer 1 batch. | Operates deterministically in non-fork mode.                |
+| Fixed values returned for zk Gas estimation.    | Starts up quickly with pre-configured 'rich' accounts.      |
+| Redeploy requires MetaMask cache reset.         | Supports hardhat's console.log debugging.                   |
+|                                                 | Resolves names of ABI functions and Events using openchain. |
 
-## Used Algorithms
+## 🛠 Prerequisites
 
-|  |  | **Precompile** |  |  |  |  |
-| --- | --- | --- | --- | --- | --- | --- |
-| **Arithmetic** | **Operation** | **ecAdd** | **ecMul** | **modexp** | **P256VERIFY** | **secp256k1VERIFY** |
-| **Prime Field Arithmetic** | **Addition** | Montgomery Modular Addition | Montgomery Modular Addition | Big Unsigned Integer Addition | Montgomery Modular Addition | Montgomery Modular Addition |
-|  | **Subtraction** | Montgomery Modular Subtraction | Montgomery Modular Subtraction | Big Unsigned Integer Subtraction With Borrow | Montgomery Modular Subtraction | Montgomery Modular Subtraction |
-|  | **Multiplication** | Montgomery Modular Multiplication | Montgomery multiplication | Big Unsigned Integer Multiplication | Montgomery multiplication | Montgomery multiplication |
-|  | **Exponentiation** | - | - | Binary exponentiation | - | - |
-|  | **Inversion** | Modified Binary Extended GCD (adapted for Montgomery Form) | Modified Binary Extended GCD (adapted for Montgomery Form) | - | Modified Binary Extended GCD (adapted for Montgomery Form) | Modified Binary Extended GCD (adapted for Montgomery Form) |
-| **Elliptic Curve Arithmetic** | **Addition** | Addition in Affine Form | Addition in Homogeneous Projective Form | - | Addition in Homogeneous Projective Form | Addition in Homogeneous Projective Form |
-|  | **Double** | Double in Affine Form | Double in Homogeneous Projective Form | - | Double in Homogeneous Projective Form | Double in Homogeneous Projective Form |
-|  | **Scalar Multiplication** | - | Double-and-add | - | Double-and-add | Double-and-add |
+1. **Rust**: `era-test-node` is written in Rust. Ensure you have Rust installed on your machine. [Download Rust here](https://www.rust-lang.org/tools/install).
 
-## Resources
+2. **Other Dependencies**: This crate relies on rocksDB. If you face any compile errors due to rocksDB, install the necessary dependencies with:
+   ```bash
+   apt-get install -y cmake pkg-config libssl-dev clang
+   ```
 
-You can find a curated list of helpful resources that we've used for guiding our implementations in [References](./References.md)
+## 📥 Installation & Setup
 
-## Development
+1. Download `era-test-node` from latest [Release](https://github.com/matter-labs/era-test-node/releases/latest)
 
-Follow the instructions below to setup the repo and run a development L2 node.
+2. Extract the binary and mark as executable:
+   ```bash
+   tar xz -f era_test_node.tar.gz -C /usr/local/bin/
+   chmod +x /usr/local/bin/era_test_node
+   ```
 
-### Running an era-test-node
+3. Start the node:
+   ```bash
+   era_test_node run
+   ```
 
-Run one of the following commands to have a working test node.
+## 🧑‍💻 Running Locally
 
-```
-make run-node
-make run-node-light # no call trace, no hash resolving, and no gas details
-```
+1. Compile Rust project and start the node:
+   ```bash
+   make run
+   ```
 
-### Run the tests
+## 📄 System Contracts
 
-If you want to run all the tests:
+The system contract within the node can be specified via the `--dev-system-contracts` option. 
+It can take one of the following options:
+   * `built-in`: Use the compiled built-in contracts
+   * `built-in-no-verify`: Use the compiled built-in contracts, but without signature verification
+   * `local`: Load contracts from `ZKSYNC_HOME`
 
-```
-make test
-```
+## 📃 Logging
 
-If you want to run a specific test:
-
-```
-make test PRECOMPILE=<precompile_name>
+The node may be started in either of `debug`, `info`, `warn` or `error` logging levels via the `--log` option:
+```bash
+era_test_node --log=error run
 ```
 
+Additionally, the file path can be provided via the `--log-file-path` option (defaults to `./era_test_node.log`):
+```bash
+era_test_node --log=error --log-file-path=run.log run
+```
 
-### To pull changes zk sync era node LC fork on the precompiles branch
+The logging can be configured during runtime via the [`config_setLogLevel`](./SUPPORTED_APIS.md#config_setloglevel) and [`config_setLogging`](./SUPPORTED_APIS.md#config_setlogging) methods.
 
-```git subtree pull --prefix=.test-node-subtree --squash git@github.com:lambdaclass/era-test-node.git lambdaclasss_precompiles```
+## 📃 Caching
 
-### To push changes from local node to the branch
+The node will cache certain network request by default to disk in the `.cache` directory. Alternatively the caching can be disabled or set to in-memory only
+via the `--cache=none|memory|disk` parameter. 
 
-This should be used if for example a precompile is added or modified, and we want to push the chanes to the fork upstream
+```bash
+era_test_node --cache=none run
+```
 
- ```git subtree push -P .test-node-subtree git@github.com:lambdaclass/era-test-node.git lambdaclasss_precompiles```
+```bash
+era_test_node --cache=memory run
+```
+
+Additionally when using `--cache=disk`, the cache directory may be specified via `--cache-dir` and the cache may
+be reset on startup via `--reset-cache` parameters.
+```bash
+era_test_node --cache=disk --cache-dir=/tmp/foo --reset-cache run
+```
+
+## 🌐 Network Details
+
+- L2 RPC: http://localhost:8011
+- Network Id: 260
+
+> Note: The existing implementation does not support communication with Layer 1. As a result, an L1 RPC is not available.
+
+## 🍴 Forking Networks
+
+To fork the mainnet:
+
+```bash
+era_test_node fork mainnet
+```
+
+> Tip: You can also fork the zkSync Sepolia testnet with `era_test_node fork sepolia-testnet`.
+
+## 🔄 Replay Remote Transactions Locally
+
+If you wish to replay a remote transaction locally for deep debugging, use the following command:
+
+```bash
+era_test_node replay_tx <network> <transaction_hash>
+```
+
+## 📞 Sending Network Calls
+
+You can send network calls against a running `era-test-node`. For example, to check the testnet LINK balance or mainnet USDT, use `curl` or `foundry-zksync`.
+
+```bash
+curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_call","params":[{"to":"0x40609141Db628BeEE3BfAB8034Fc2D8278D0Cc78", "data":"0x06fdde03"}, "latest"],"id":1}' http://localhost:8011
+```
+
+## 🔍 Seeing more details of the transactions
+
+By default, the tool is just printing the basic information about the executed transactions (like status, gas used etc).
+
+But with --show-calls flag, it can print more detailed call traces, and with --resolve-hashes, it will ask openchain for ABI names.
+
+```bash
+era_test_node --show-calls=user --resolve-hashes replay_tx sepolia-testnet 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+
+Executing 0x7119045573862797257e4441ff48bf5a3bc4d133a00d167c18dc955eda12cfac
+┌─────────────────────────┐
+│   TRANSACTION SUMMARY   │
+└─────────────────────────┘
+Transaction: SUCCESS
+Initiator: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
+Payer: 0x4eaf936c172b5e5511959167e8ab4f7031113ca3
+Gas - Limit: 2_487_330 | Used: 969_330 | Refunded: 1_518_000
+Use --show-gas-details flag or call config_setShowGasDetails to display more info
+
+==== Console logs: 
+
+==== 22 call traces.  Use --show-calls flag or call config_setShowCalls to display more info.
+  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           validateTransaction(bytes32, bytes32, tuple)   1830339
+    Call(Normal) 0x0000000000000000000000000000000000000001                 0x89c19e9b   1766835
+  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           payForTransaction(bytes32, bytes32, tuple)   1789767
+  Call(Normal) 0x4eaf936c172b5e5511959167e8ab4f7031113ca3           executeTransaction(bytes32, bytes32, tuple)   1671012
+      Call(Mimic) 0x5d4fb5385ed95b65d1cd6a10ed9549613481ab2f           0x   1443393
+```
+
+You can use the following options to get more granular information during transaction processing:
+
+- `--show-storage-logs <SHOW_STORAGE_LOGS>`: Show storage log information.  
+  [default: none]  
+  [possible values: none, read, paid, write, all]
+
+- `--show-vm-details <SHOW_VM_DETAILS>`: Show VM details information.  
+  [default: none]  
+  [possible values: none, all]
+
+- `--show-gas-details <SHOW_GAS_DETAILS>`: Show Gas details information.  
+  [default: none]  
+  [possible values: none, all]
+
+Example:
+
+```bash
+era_test_node --show-storage-logs=all --show-vm-details=all --show-gas-details=all run
+```
+
+## 💰 Using Rich Wallets
+
+For testing and development purposes, the `era-test-node` comes pre-configured with a set of 'rich' wallets. These wallets are loaded with test funds, allowing you to simulate transactions and interactions without the need for real assets.
+
+Here's a list of the available rich wallets:
+
+| Account Address                              | Private Key                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| `0x36615Cf349d7F6344891B1e7CA7C72883F5dc049` | `0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110` |
+| `0xa61464658AfeAf65CccaaFD3a512b69A83B77618` | `0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3` |
+| `0x0D43eB5B8a47bA8900d84AA36656c92024e9772e` | `0xd293c684d884d56f8d6abd64fc76757d3664904e309a0645baf8522ab6366d9e` |
+| `0xA13c10C0D5bd6f79041B9835c63f91de35A15883` | `0x850683b40d4a740aa6e745f889a6fdc8327be76e122f5aba645a5b02d0248db8` |
+| `0x8002cD98Cfb563492A6fB3E7C8243b7B9Ad4cc92` | `0xf12e28c0eb1ef4ff90478f6805b68d63737b7f33abfa091601140805da450d93` |
+| `0x4F9133D1d3F50011A6859807C837bdCB31Aaab13` | `0xe667e57a9b8aaa6709e51ff7d093f1c5b73b63f9987e4ab4aa9a5c699e024ee8` |
+| `0xbd29A1B981925B94eEc5c4F1125AF02a2Ec4d1cA` | `0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959` |
+| `0xedB6F5B4aab3dD95C7806Af42881FF12BE7e9daa` | `0x74d8b3a188f7260f67698eb44da07397a298df5427df681ef68c45b34b61f998` |
+| `0xe706e60ab5Dc512C36A4646D719b889F398cbBcB` | `0xbe79721778b48bcc679b78edac0ce48306a8578186ffcb9f2ee455ae6efeace1` |
+| `0xE90E12261CCb0F3F7976Ae611A29e84a6A85f424` | `0x3eb15da85647edd9a1159a4a13b9e7c56877c4eb33f614546d4db06a51868b1c` |
+
+Feel free to use these wallets in your tests, but remember, they are for development purposes only and should not be used in production or with real assets.
+
+## 🔧 Supported APIs
+
+See our list of [Supported APIs here](SUPPORTED_APIS.md).
+
+## 🤖 CI/CD Testing with GitHub Actions
+
+A GitHub Action is available for integrating `era-test-node` into your CI/CD environments. This action offers high configurability and streamlines the process of testing your applications in an automated way.
+
+You can find this GitHub Action in the marketplace [here](https://github.com/marketplace/actions/era-test-node-action).
+
+### 📝 Example Usage
+
+Below is an example `yaml` configuration to use the `era-test-node` GitHub Action in your workflow:
+
+```yml
+name: Run Era Test Node Action
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Run Era Test Node
+      uses: dutterbutter/era-test-node-action@latest
+```
+
+## 🤝 Contributing
+
+We welcome contributions from the community! If you're interested in contributing to the zkSync Era In-Memory Node, please take a look at our [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for guidelines and details on the process.
+
+Thank you for making zkSync Era In-Memory Node better! 🙌
